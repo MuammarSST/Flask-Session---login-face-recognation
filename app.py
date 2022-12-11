@@ -15,7 +15,11 @@ import os
 import time
 from datetime import date
 
+id_temp = 0
 
+cnt = 0
+pause_cnt = 0
+justscanned = False
 
 mydb = mysql.connector.connect(
     host="localhost",
@@ -54,6 +58,7 @@ def ceklogin():
 
 @app.route("/login")
 def login():
+    session.pop('user_id', None)
     return render_template('login.html')
     
 
@@ -61,6 +66,8 @@ def login():
 def home():
     if not session.get("user_id"):
         return redirect("/login")
+    
+    cv2.destroyAllWindows()
     mycursor.execute("select * from user")
     data = mycursor.fetchall()
  
@@ -165,81 +172,126 @@ def train_classifier(user_id):
 
 
 
-@app.route("/logout")
-def logout():
-	session["user_id"] = None
-	return redirect("/")
+	
 
-face_cascade=cv2.CascadeClassifier("resources/haarcascade_frontalface_default.xml")
-ds_factor=0.6
-
-class VideoCamera(object):
-    def __init__(self):
-       #capturing video
-       self.video = cv2.VideoCapture(0)
-    
-    def __del__(self):
-        #releasing camera
-        self.video.release()
-
-    def get_frame(self):
-       #extracting frames
-        ret, frame = self.video.read()
-        frame=cv2.resize(frame,None,fx=ds_factor,fy=ds_factor,
-        interpolation=cv2.INTER_AREA)                    
-        gray=cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY)
-        face_rects=face_cascade.detectMultiScale(gray,1.3,5)
-        for (x,y,w,h) in face_rects:
-            cv2.rectangle(frame,(x,y),(x+w,y+h),(0,255,0),2)
-            recognizer = cv2.face.LBPHFaceRecognizer_create() 
-            recognizer.read("classifier.json")
-            id, pred = recognizer.predict(gray[y:y + h, x:x + w])
-            confidence = int(100 * (1 - pred / 300))
-            if confidence > 70 :
-                mycursor.execute("select * from user where user_id ='{}'".format(id))
-                row = mycursor.fetchone()
-                user_id = row[0]
-                user_name = row[1]
-
-                cv2.putText(frame, str('{}, {}%'.format(user_name,round(confidence,2))), (x, y + 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
-               
-            break        
-        ret, jpeg = cv2.imencode('.jpg', frame)
-        return jpeg.tobytes()
-
-def gen(camera):
-    while True:
-        #get camera frame
-        frame = camera.get_frame()
-        yield (b'--frame\r\n'
-               b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n\r\n')
 
 @app.route('/login_video_feed')
 def login_video_feed():
-    return Response(gen(VideoCamera()),
-                    mimetype='multipart/x-mixed-replace; boundary=frame')
+    # Video streaming route. Put this in the src attribute of an img tag
+    return Response(login_face_recognition(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
+@app.route('/login_face_recognition', methods =['GET', 'POST'])
+def login_face_recognition(): 
+    faceCascade = cv2.CascadeClassifier("resources/haarcascade_frontalface_default.xml")
+    clf = cv2.face.LBPHFaceRecognizer_create()
+    clf.read("classifier.json")
+ 
+    wCam, hCam = 400, 400
+ 
+    cap = cv2.VideoCapture(0)
+    cap.set(3, wCam)
+    cap.set(4, hCam)
+     
+    def draw_boundary(img, classifier, scaleFactor, minNeighbors, color, text, clf):
+        gray_image = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        features = classifier.detectMultiScale(gray_image, scaleFactor, minNeighbors)
+ 
+        global justscanned
+        global pause_cnt
+ 
+        pause_cnt += 1
+ 
+        coords = []
+ 
+        for (x, y, w, h) in features:
+            cv2.rectangle(img, (x, y), (x + w, y + h), color, 2)
+            id, pred = clf.predict(gray_image[y:y + h, x:x + w])
+            confidence = int(100 * (1 - pred / 300))
+ 
+            if confidence > 70 and not justscanned:
+                global cnt
+                cnt += 1
+ 
+                n = (100 / 30) * cnt
+                # w_filled = (n / 100) * w
+                w_filled = (cnt / 30) * w
+ 
+                cv2.putText(img, str(int(n))+' %', (x + 20, y + h + 28), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (153, 255, 255), 2, cv2.LINE_AA)
+ 
+                cv2.rectangle(img, (x, y + h + 40), (x + w, y + h + 50), color, 2)
+                cv2.rectangle(img, (x, y + h + 40), (x + int(w_filled), y + h + 50), (153, 255, 255), cv2.FILLED)
+                
+                mycursor.execute("select * from user where user_id ='{}'".format(id))
 
+                row = mycursor.fetchone()
+                
+
+                user_id = row[0]
+                user_name = row[1]
+
+                global id_temp
+                id_temp=user_id
+
+ 
+                if int(cnt) == 30:
+                    cnt = 0
+ 
+                    mycursor.execute("insert into riwayat (user_id, tanggal) values('" + user_id + "','"+str(date.today())+"')")
+                    mydb.commit()
+ 
+                    cv2.putText(img, user_name , (x - 10, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (153, 255, 255), 2, cv2.LINE_AA)
+                    time.sleep(1)
+                    
+                    
+                    
+
+                    justscanned = True
+                    pause_cnt = 0
+ 
+            else:
+                if not justscanned:
+                    cv2.putText(img, 'Tidak Diketahui', (x, y - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2, cv2.LINE_AA)
+                else:
+                    cv2.putText(img, ' ', (x, y - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2,cv2.LINE_AA)
+ 
+                if pause_cnt > 80:
+                    justscanned = False
+ 
+            coords = [x, y, w, h]
+        return coords
+ 
+    def recognize(img, clf, faceCascade):
+        coords = draw_boundary(img, faceCascade, 1.1, 10, (255, 255, 0), "Face", clf)
+        return img
+ 
+    
+ 
+    while True:
+        ret, img = cap.read()
+        img = recognize(img, clf, faceCascade)
+ 
+        frame = cv2.imencode('.jpg', img)[1].tobytes()
+        yield (b'--frame\r\n'
+               b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n\r\n')
+ 
+        key = cv2.waitKey(1)
+        if key == 27:
+            break
+ 
 
 @app.route('/loadData', methods = ['GET', 'POST'])
 def loadData():
-    mycursor.execute("select * from user where user_id ='{}'".format(id))
+    mycursor.execute("select * from user where user_id ='{}'".format(id_temp))
     data = mycursor.fetchall()
- 
+    session["user_id"] = data[0]
+
     return jsonify(response = data)
 
-@app.route("/periksalogin", methods=["POST", "GET"])
-def periksalogin():
-    if request.method == "GET":
-        
-        username = request.form.get("username")
-        password = request.form.get("password")
-        print(username)
-        print(password)
-        
-        mycursor.execute("select * from user where username ='{}' and password='{}'".format(username,password))
-        data =mycursor.fetchall()
-        
+
+@app.route('/keluar')
+def keluar():
+	session.pop('user_id', None)
+	return redirect("/login")   
         
 
 if __name__ == "__main__":
