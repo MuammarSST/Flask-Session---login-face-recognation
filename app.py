@@ -2,10 +2,17 @@ from flask import Flask, render_template, redirect, request, session, Response, 
 # The Session instance is not used for direct access, you should always use flask.session
 from flask_session import Session
 
+
+
+
+
 app = Flask(__name__)
 app.config["SESSION_PERMANENT"] = False
 app.config["SESSION_TYPE"] = "filesystem"
 Session(app)
+
+app.secret_key = 'face_recognation'
+
 
 import cv2
 import mysql.connector
@@ -58,6 +65,7 @@ def ceklogin():
 
 @app.route("/login")
 def login():
+    session.clear()
     session.pop('user_id', None)
     return render_template('login.html')
     
@@ -177,7 +185,7 @@ def train_classifier(user_id):
 
 @app.route('/login_video_feed')
 def login_video_feed():
-    # Video streaming route. Put this in the src attribute of an img tag
+   
     return Response(login_face_recognition(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 @app.route('/login_face_recognition', methods =['GET', 'POST'])
@@ -229,13 +237,13 @@ def login_face_recognition():
                 user_id = row[0]
                 user_name = row[1]
 
-                global id_temp
-                id_temp=user_id
+                
 
  
                 if int(cnt) == 30:
                     cnt = 0
- 
+                    global id_temp
+                    id_temp=user_id
                     mycursor.execute("insert into riwayat (user_id, tanggal) values('" + user_id + "','"+str(date.today())+"')")
                     mydb.commit()
  
@@ -290,8 +298,9 @@ def loadData():
 
 @app.route('/keluar')
 def keluar():
-	session.pop('user_id', None)
-	return redirect("/login")   
+    session.clear()
+    session["user_id"] = None
+    return redirect("/")   
         
 
 if __name__ == "__main__":
