@@ -1,0 +1,22 @@
+{% extends "layout.html" %}
+
+{% block y %}
+
+<section class="py-1">
+    <div class="row mt-5">
+        <div class="col-md-3 offset-lg-2">
+            <h3>Generate Dataset {{ prs }}</h3>
+            <hr>
+            <img src="{{ url_for('vidfeed_dataset', user_id=user_id) }}" width="100%" class="img-thumbnail">
+        </div>
+    </div>
+
+    <br>
+    <div class="row">
+        <div class="col-md-3 offset-lg-2">
+            <a class="btn btn-warning btn-lg" href="{{ url_for('train_classifier', user_id=user_id) }}"> Training </a>
+        </div>
+    </div>
+</section>
+
+{% endblock %}

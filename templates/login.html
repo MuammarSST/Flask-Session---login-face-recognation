@@ -1,0 +1,88 @@
+{% extends "layout.html" %}
+
+{% block y %}
+<center>
+	<h2>SYSTEM LOGIN WEB DEVELOPMENT AUTENTIFIKASI KE - 2 DENGAN AI (ARTIFICIAL INTELLIGENCE) METODE FACE RECOGNATION</h2>
+	<h4>Oleh : Muammar - 21/2006/0057/TSD/14</h4>
+
+	<h4>
+		Pembimbing :
+		Dr. Widyastuti Andriyani, S.Kom., M.Kom
+	</h4>
+	<h4>
+		Penguji :
+		Dr. Bambang PDP, SE., Ak., S.Kom., MMSI
+	</h4>
+	<h2>
+		PROGRAM STUDI : S2 - TEKNOLOGI INFORMASI,
+		UNIVERSITAS TEKNOLOGI DIGITAL INDONESIA
+	</h2>
+
+
+	<div class="col-md-12">
+		<h3>Hasil Face Recognation</h3>
+
+		<table class="table" >
+			<thead>
+				<tr>
+					<form action="/periksalogin" method="get"></form>
+						<th>User id</th>
+						<th>username</th>
+						<th>Aksi</th>
+					</form>
+				</tr>
+			</thead>
+			<tbody id="scandata">
+
+			</tbody>
+		</table>
+	</div>
+	<div class="form-group" style="text-align: center;">
+		<img src="{{ url_for('login_video_feed') }}" width="40%">
+	</div>
+</center>
+
+{% endblock %}
+
+{% block script %}
+
+
+<script type="text/javascript">
+    $(document).ready(function() {
+       
+        reloadTable();
+ 
+        
+ 
+        
+ 
+        function reloadTable() {
+            $.ajax({
+                url: '/loadData',
+                type: 'GET',
+                dataType: 'json',
+                success: function(response){
+                    var tr = $("#scandata");
+                    tr.empty();
+ 
+                    $.each(response, function(index, item) {
+                        if (item.length > 0) {
+                            for (let i = 0; i < item.length; i++) {
+                                tr.append('<tr>'+
+                                                '<td>'+item[i][0]+'</td>'+
+                                                '<td>'+item[i][1]+'</td>'+
+                       
+												'<td><button type="submit" class="btn btn-primary">Login</button></td>'+
+                                           '</tr>');
+                            }
+                        }
+                    });
+                },
+                error: function(result){
+                    console.log('no result!')
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}
